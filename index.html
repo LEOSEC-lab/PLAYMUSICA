@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#07080c">
+    <meta name="description" content="LEO PLAYER MUSIC — player de músicas locais com visual cyberpunk.">
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+    <title>LEO PLAYER MUSIC - Cyberpunk Audio Suite & Local Library</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        cyber: {
+                            dark: '#07080c',
+                            card: '#0f111a',
+                            border: '#1e2235',
+                            cyan: '#00f3ff',
+                            purple: '#bc13fe',
+                            pink: '#ff007f',
+                            neonGreen: '#00ff66',
+                            yellow: '#ffcc00'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        cyber: ['Orbitron', 'sans-serif']
+                    },
+                    boxShadow: {
+                        'neon-cyan': '0 0 20px rgba(0, 243, 255, 0.4)',
+                        'neon-purple': '0 0 20px rgba(188, 19, 254, 0.4)',
+                        'neon-pink': '0 0 20px rgba(255, 0, 127, 0.4)',
+                        'glass': '0 8px 32px 0 rgba(0, 0, 0, 0.37)'
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Google Fonts: Orbitron & Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- jsmediatags (para extrair metadados ID3/capa de MP3) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+
+</head>
+<body class="min-h-screen flex flex-col selection:bg-cyber-cyan selection:text-black">
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="fixed top-5 right-5 z-50 flex flex-col gap-3 pointer-events-none"></div>
+
+    <!-- Hidden File Inputs -->
+    <input type="file" id="folder-input" webkitdirectory directory multiple accept="audio/*" class="hidden" onchange="handleFileSelection(event)">
+    <input type="file" id="files-input" multiple accept="audio/*" class="hidden" onchange="handleFileSelection(event)">
+
+    <!-- PWA Install Banner -->
+    <div id="pwa-banner" class="fixed bottom-20 md:bottom-6 left-4 right-4 md:left-auto md:right-6 md:w-96 z-40 glass-panel p-4 rounded-2xl shadow-neon-cyan border border-cyber-cyan/40 hidden transition-all duration-300">
+        <div class="flex items-start gap-3">
+            <div class="p-3 bg-cyber-cyan/10 text-cyber-cyan rounded-xl text-xl">
+                <i class="fa-solid fa-bolt"></i>
+            </div>
+            <div class="flex-1">
+                <h4 class="cyber-font font-bold text-sm text-cyber-cyan">Instalar LEO PLAYER MUSIC</h4>
+                <p class="text-xs text-gray-400 mt-1">Escute suas músicas locais e do YouTube offline como app nativo.</p>
+                <div class="flex gap-2 mt-3">
+                    <button id="btn-install-pwa" class="px-4 py-1.5 bg-gradient-to-r from-cyber-cyan to-cyber-purple text-black font-bold text-xs rounded-lg shadow-neon-cyan hover:opacity-90 transition">Instalar PWA</button>
+                    <button id="btn-close-banner" class="px-3 py-1.5 bg-white/5 text-gray-400 hover:text-white text-xs rounded-lg transition">Agora não</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Header / Navbar -->
+    <header class="glass-panel sticky top-0 z-30 border-b border-cyber-border px-4 lg:px-8 py-3 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <div class="relative w-10 h-10 rounded-xl bg-gradient-to-br from-cyber-cyan via-cyber-purple to-cyber-pink p-0.5 shadow-neon-cyan flex items-center justify-center">
+                <div class="w-full h-full bg-cyber-dark rounded-[10px] flex items-center justify-center">
+                    <i class="fa-solid fa-compact-disc text-cyber-cyan text-xl animate-spin" style="animation-duration: 8s;"></i>
+                </div>
+                <span class="absolute -top-1 -right-1 w-3 h-3 bg-cyber-neonGreen rounded-full border-2 border-cyber-dark"></span>
+            </div>
+            <div>
+                <h1 class="cyber-font text-base lg:text-lg font-black tracking-wider bg-gradient-to-r from-cyber-cyan via-white to-cyber-purple bg-clip-text text-transparent">
+                    LEO PLAYER MUSIC
+                </h1>
+                <div class="flex items-center gap-2 text-[10px] text-gray-400">
+                    <span class="flex items-center gap-1 text-cyber-cyan"><i class="fa-solid fa-circle text-[6px]"></i> V3.0 ULTRA</span>
+                    <span>•</span>
+                    <span id="storage-status" class="text-cyber-neonGreen">Biblioteca Ativa</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <nav class="hidden md:flex items-center gap-1 bg-cyber-dark/80 p-1.5 rounded-xl border border-cyber-border">
+            <button onclick="switchTab('local')" id="tab-btn-local" class="px-4 py-1.5 rounded-lg text-xs font-medium transition flex items-center gap-2 bg-cyber-cyan/20 text-cyber-cyan shadow-sm">
+                <i class="fa-solid fa-folder-closed"></i> Músicas Locais
+            </button>
+            <button onclick="switchTab('player')" id="tab-btn-player" class="px-4 py-1.5 rounded-lg text-xs font-medium transition flex items-center gap-2 text-gray-400 hover:text-white">
+                <i class="fa-brands fa-youtube"></i> Player YouTube
+            </button>
+            <button onclick="switchTab('downloader')" id="tab-btn-downloader" class="px-4 py-1.5 rounded-lg text-xs font-medium transition flex items-center gap-2 text-gray-400 hover:text-white">
+                <i class="fa-solid fa-download"></i> Baixar MP3
+            </button>
+            <button onclick="switchTab('library')" id="tab-btn-library" class="px-4 py-1.5 rounded-lg text-xs font-medium transition flex items-center gap-2 text-gray-400 hover:text-white">
+                <i class="fa-solid fa-heart"></i> Favoritos
+            </button>
+            <button onclick="switchTab('equalizer')" id="tab-btn-equalizer" class="px-4 py-1.5 rounded-lg text-xs font-medium transition flex items-center gap-2 text-gray-400 hover:text-white">
+                <i class="fa-solid fa-sliders"></i> Equalizador
+            </button>
+        </nav>
+
+        <!-- Header Actions -->
+        <div class="flex items-center gap-2">
+            <button onclick="openFolderPicker()" class="px-3 py-2 bg-gradient-to-r from-cyber-cyan to-cyber-purple text-black font-extrabold text-xs rounded-xl shadow-neon-cyan hover:opacity-90 transition flex items-center gap-1.5 cyber-font">
+                <i class="fa-solid fa-folder-plus"></i> <span class="hidden sm:inline">Add Pasta</span>
+            </button>
+            <button onclick="toggleFullscreen()" title="Tela Cheia" class="p-2.5 rounded-xl glass-panel hover:border-cyber-cyan text-gray-300 hover:text-cyber-cyan transition text-sm">
+                <i class="fa-solid fa-expand"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Mobile Bottom Navigation -->
+    <div class="md:hidden fixed bottom-0 left-0 right-0 z-30 glass-panel border-t border-cyber-border px-3 py-2 flex justify-around items-center bg-cyber-dark/95 backdrop-blur-xl">
+        <button onclick="switchTab('local')" id="mob-tab-local" class="flex flex-col items-center gap-1 text-cyber-cyan text-[10px]">
+            <i class="fa-solid fa-folder-closed text-base"></i>
+            <span>Locais</span>
+        </button>
+        <button onclick="switchTab('player')" id="mob-tab-player" class="flex flex-col items-center gap-1 text-gray-400 text-[10px]">
+            <i class="fa-brands fa-youtube text-base"></i>
+            <span>YouTube</span>
+        </button>
+        <button onclick="switchTab('downloader')" id="mob-tab-downloader" class="flex flex-col items-center gap-1 text-gray-400 text-[10px]">
+            <i class="fa-solid fa-download text-base"></i>
+            <span>Baixar</span>
+        </button>
+        <button onclick="switchTab('library')" id="mob-tab-library" class="flex flex-col items-center gap-1 text-gray-400 text-[10px]">
+            <i class="fa-solid fa-heart text-base"></i>
+            <span>Favoritos</span>
+        </button>
+        <button onclick="switchTab('equalizer')" id="mob-tab-equalizer" class="flex flex-col items-center gap-1 text-gray-400 text-[10px]">
+            <i class="fa-solid fa-sliders text-base"></i>
+            <span>Equalizer</span>
+        </button>
+    </div>
+
+    <!-- Main Container -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 lg:p-8 pb-32 md:pb-24">
+
+        <!-- TAB LOCAL: BIBLIOTECA DE MÚSICAS LOCAIS -->
+        <div id="tab-local" class="space-y-6">
+            <!-- Hero Header Local -->
+            <div class="glass-panel p-6 lg:p-8 rounded-3xl relative overflow-hidden shadow-glass border border-cyber-cyan/30">
+                <div class="absolute -right-20 -top-20 w-72 h-72 bg-cyber-cyan/15 rounded-full blur-3xl pointer-events-none"></div>
+                
+                <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
+                    <div>
+                        <span class="px-3 py-1 bg-cyber-cyan/10 border border-cyber-cyan/30 text-cyber-cyan text-xs font-bold rounded-full cyber-font">
+                            OFFLINE ENGINE & INDEXEDDB
+                        </span>
+                        <h2 class="text-2xl lg:text-3xl font-extrabold cyber-font mt-3 tracking-wide">
+                            Sua Biblioteca <span class="text-cyber-cyan">Local do Dispositivo</span>
+                        </h2>
+                        <p class="text-gray-400 text-sm mt-1 max-w-2xl">
+                            Adicione a pasta de áudios do seu celular ou PC. O LEO PLAYER lê e organiza suas faixas MP3, WAV, FLAC, OGG para tocar direto no app sem internet.
+                        </p>
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-3">
+                        <button onclick="openFolderPicker()" class="px-5 py-3.5 bg-gradient-to-r from-cyber-cyan to-cyber-purple text-black font-extrabold text-xs rounded-2xl shadow-neon-cyan hover:opacity-90 transition flex items-center gap-2 cyber-font">
+                            <i class="fa-solid fa-folder-open text-base"></i> Adicionar Pasta Completa
+                        </button>
+                        <button onclick="openFilesPicker()" class="px-5 py-3.5 bg-white/5 hover:bg-cyber-cyan/20 border border-cyber-border hover:border-cyber-cyan text-gray-200 text-xs font-bold rounded-2xl transition flex items-center gap-2">
+                            <i class="fa-solid fa-music"></i> Selecionar Arquivos
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Search & Filters -->
+                <div class="mt-6 pt-6 border-t border-cyber-border flex flex-col sm:flex-row gap-3 items-center justify-between">
+                    <div class="relative w-full sm:w-80">
+                        <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-gray-400 pointer-events-none">
+                            <i class="fa-solid fa-magnifying-glass text-xs"></i>
+                        </span>
+                        <input type="text" id="local-search-input" onkeyup="filterLocalTracks()" placeholder="Buscar por título, artista, álbum..." 
+                            class="w-full pl-9 pr-4 py-2 bg-cyber-dark/80 border border-cyber-border rounded-xl text-xs focus:outline-none focus:border-cyber-cyan text-white">
+                    </div>
+
+                    <div class="flex items-center gap-2 text-xs text-gray-400 w-full sm:w-auto justify-between">
+                        <span id="local-track-count" class="font-semibold text-cyber-cyan">0 Músicas Carregadas</span>
+                        <button onclick="clearLocalLibrary()" class="text-red-400 hover:text-red-300 transition text-[11px] flex items-center gap-1">
+                            <i class="fa-solid fa-trash-can"></i> Limpar Biblioteca
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Local Tracks List Grid -->
+            <div class="glass-panel p-4 lg:p-6 rounded-3xl border border-cyber-border">
+                <div id="local-tracks-container" class="space-y-2.5">
+                    <!-- Placeholder quando não há arquivos -->
+                    <div id="local-empty-state" class="py-16 text-center space-y-4">
+                        <div class="w-20 h-20 mx-auto rounded-3xl bg-cyber-cyan/10 text-cyber-cyan flex items-center justify-center text-3xl shadow-neon-cyan animate-pulse">
+                            <i class="fa-solid fa-folder-open"></i>
+                        </div>
+                        <h3 class="cyber-font text-base font-bold text-gray-200">Nenhuma pasta ou música importada</h3>
+                        <p class="text-xs text-gray-400 max-w-md mx-auto">
+                            Clique em "Adicionar Pasta Completa" para carregar seus arquivos de áudio baixados do seu celular ou PC.
+                        </p>
+                        <button onclick="openFolderPicker()" class="px-6 py-3 bg-cyber-cyan/20 hover:bg-cyber-cyan/30 text-cyber-cyan border border-cyber-cyan/50 text-xs font-bold rounded-xl transition shadow-neon-cyan">
+                            Escolher Pasta de Músicas
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 1: PLAYER YOUTUBE -->
+        <div id="tab-player" class="space-y-6 hidden">
+            <!-- Hero Banner & URL Input -->
+            <div class="glass-panel p-6 rounded-3xl relative overflow-hidden shadow-glass border border-cyber-cyan/30">
+                <div class="relative z-10 max-w-2xl">
+                    <span class="px-3 py-1 bg-cyber-cyan/10 border border-cyber-cyan/30 text-cyber-cyan text-xs font-bold rounded-full cyber-font">
+                        CYBERPUNK YOUTUBE STREAMING
+                    </span>
+                    <h2 class="text-2xl lg:text-3xl font-extrabold cyber-font mt-3 tracking-wide">
+                        Insira sua música do <span class="text-cyber-cyan">YouTube</span>
+                    </h2>
+                    
+                    <div class="mt-5 flex flex-col sm:flex-row gap-3">
+                        <div class="relative flex-1">
+                            <span class="absolute inset-y-0 left-0 pl-4 flex items-center text-gray-400 pointer-events-none">
+                                <i class="fa-brands fa-youtube text-red-500"></i>
+                            </span>
+                            <input type="text" id="youtube-input" placeholder="Ex: https://www.youtube.com/watch?v=dQw4w9WgXcQ" 
+                                class="w-full pl-11 pr-4 py-3.5 bg-cyber-dark/80 border border-cyber-border rounded-2xl text-sm focus:outline-none focus:border-cyber-cyan text-white placeholder-gray-500 transition shadow-inner">
+                        </div>
+                        <button onclick="loadYouTubeTrack()" class="px-6 py-3.5 bg-gradient-to-r from-cyber-cyan to-cyber-purple text-black font-extrabold text-sm rounded-2xl shadow-neon-cyan hover:opacity-90 transition flex items-center justify-center gap-2 cyber-font">
+                            <i class="fa-solid fa-play"></i> Tocar
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- YouTube Embedded Viewport -->
+            <div class="glass-panel p-6 rounded-3xl border border-cyber-border">
+                <div class="aspect-video w-full bg-black/60 rounded-2xl overflow-hidden border border-cyber-border relative flex items-center justify-center">
+                    <div id="youtube-player-container" class="w-full h-full"></div>
+                    <div id="player-placeholder" class="absolute inset-0 flex flex-col items-center justify-center text-center p-6 bg-cyber-dark/90">
+                        <div class="w-16 h-16 rounded-2xl bg-cyber-cyan/10 text-cyber-cyan flex items-center justify-center text-2xl mb-3 shadow-neon-cyan">
+                            <i class="fa-brands fa-youtube"></i>
+                        </div>
+                        <h3 class="cyber-font font-bold text-base text-gray-200">YouTube Player Pronto</h3>
+                        <p class="text-xs text-gray-400 mt-1">Cole um link do YouTube para tocar online com áudio synchronizado.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 2: CONVERSOR E BAIXADOR MP3 -->
+        <div id="tab-downloader" class="space-y-6 hidden">
+            <div class="glass-panel p-6 lg:p-8 rounded-3xl border border-cyber-purple/40 relative overflow-hidden shadow-glass">
+                <div class="max-w-3xl">
+                    <span class="px-3 py-1 bg-cyber-purple/10 border border-cyber-purple/30 text-cyber-purple text-xs font-bold rounded-full cyber-font">
+                        CONVERSOR E EXTRAÇÃO DE ÁUDIO
+                    </span>
+                    <h2 class="text-2xl lg:text-3xl font-extrabold cyber-font mt-3 tracking-wide">
+                        Conversor & Baixador <span class="text-cyber-purple">MP3 Embutido</span>
+                    </h2>
+
+                    <div class="mt-6 space-y-4">
+                        <div class="flex flex-col sm:flex-row gap-3">
+                            <input type="text" id="download-url-input" placeholder="Cole o link do YouTube para converter em MP3..." 
+                                class="flex-1 px-4 py-3.5 bg-cyber-dark/80 border border-cyber-border rounded-2xl text-sm focus:outline-none focus:border-cyber-purple text-white">
+                            
+                            <select id="download-quality" class="px-4 py-3.5 bg-cyber-dark/80 border border-cyber-border rounded-2xl text-xs font-semibold text-cyber-purple focus:outline-none">
+                                <option value="320">320 kbps (Ultra HQ)</option>
+                                <option value="256">256 kbps (High)</option>
+                                <option value="192" selected>192 kbps (Padrão)</option>
+                            </select>
+
+                            <button onclick="startDownloadProcess()" class="px-6 py-3.5 bg-gradient-to-r from-cyber-purple to-cyber-cyan text-black font-extrabold text-sm rounded-2xl shadow-neon-purple hover:opacity-90 transition cyber-font">
+                                Converter MP3
+                            </button>
+                        </div>
+
+                        <div id="download-progress-box" class="hidden glass-panel p-5 rounded-2xl border border-cyber-border space-y-3">
+                            <div class="flex justify-between items-center text-xs">
+                                <span id="download-status-text" class="text-cyber-purple font-bold cyber-font">Iniciando conversão...</span>
+                                <span id="download-percent" class="text-gray-400 font-bold">0%</span>
+                            </div>
+                            <div class="w-full h-3 bg-cyber-dark rounded-full overflow-hidden border border-cyber-border relative">
+                                <div id="download-progress-bar" class="h-full bg-gradient-to-r from-cyber-purple to-cyber-cyan w-0 transition-all duration-300"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Download History -->
+            <div class="glass-panel p-6 rounded-3xl border border-cyber-border">
+                <h3 class="cyber-font text-base font-bold text-cyber-purple mb-4">Histórico de Downloads MP3</h3>
+                <div id="download-history-list" class="space-y-3">
+                    <div class="text-center py-6 text-gray-500 text-xs">Nenhum download recente.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 3: FAVORITOS -->
+        <div id="tab-library" class="space-y-6 hidden">
+            <div class="glass-panel p-6 rounded-3xl border border-cyber-pink/30 flex items-center justify-between">
+                <div>
+                    <h2 class="text-2xl font-extrabold cyber-font text-cyber-pink">Músicas Favoritas</h2>
+                    <p class="text-gray-400 text-sm mt-1">Sua coleção marcada com coração.</p>
+                </div>
+            </div>
+
+            <div class="glass-panel p-6 rounded-3xl border border-cyber-border">
+                <div id="favorites-list" class="space-y-3">
+                    <div class="text-center py-12 text-gray-500 text-xs">Nenhum favorito salvo.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 4: EQUALIZADOR -->
+        <div id="tab-equalizer" class="space-y-6 hidden">
+            <div class="glass-panel p-6 lg:p-8 rounded-3xl border border-cyber-cyan/30">
+                <h2 class="text-2xl font-extrabold cyber-font text-cyber-cyan">Equalizador Cyberpunk 10-Band</h2>
+                <p class="text-gray-400 text-sm mt-1">Controle de frequências e presets para suas músicas locais.</p>
+
+                <div class="mt-6 flex flex-wrap gap-2">
+                    <button onclick="applyEQPreset('flat')" class="px-3 py-1.5 bg-cyber-cyan/20 text-cyber-cyan text-xs rounded-xl font-bold">Flat</button>
+                    <button onclick="applyEQPreset('bass')" class="px-3 py-1.5 bg-white/5 text-gray-300 text-xs rounded-xl border border-cyber-border">Bass Boost</button>
+                    <button onclick="applyEQPreset('cyber')" class="px-3 py-1.5 bg-white/5 text-gray-300 text-xs rounded-xl border border-cyber-border">Cyberpunk Club</button>
+                </div>
+
+                <div class="mt-8 grid grid-cols-5 lg:grid-cols-10 gap-3">
+                    <!-- EQ Sliders -->
+                    <script>
+                        const freqs = ['60Hz','120Hz','250Hz','500Hz','1kHz','2kHz','4kHz','8kHz','12kHz','16kHz'];
+                        document.write(freqs.map(f => `
+                            <div class="flex flex-col items-center gap-2 glass-panel p-3 rounded-2xl">
+                                <span class="text-[10px] text-gray-400 font-bold">${f}</span>
+                                <input type="range" min="-12" max="12" value="0" class="h-28 accent-cyber-cyan cursor-pointer eq-slider" style="writing-mode: bt-lr; -webkit-appearance: slider-vertical;" oninput="updateEQBand(this)">
+                                <span class="text-[10px] text-cyber-cyan eq-val">0 dB</span>
+                            </div>
+                        `).join(''));
+                    </script>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- GLOBAL AUDIO PLAYER STICKY FOOTER BAR -->
+    <div id="sticky-player-bar" class="fixed bottom-0 left-0 right-0 z-40 glass-panel border-t border-cyber-cyan/40 px-4 py-3 bg-cyber-dark/95 backdrop-blur-2xl shadow-2xl">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3">
+            
+            <!-- Track Info & Cover -->
+            <div class="flex items-center gap-3 w-full md:w-1/3">
+                <div class="relative w-12 h-12 rounded-xl bg-cyber-card border border-cyber-cyan/40 overflow-hidden flex-shrink-0 flex items-center justify-center">
+                    <img id="player-album-art" src="" class="w-full h-full object-cover hidden">
+                    <i id="player-album-fallback" class="fa-solid fa-music text-cyber-cyan text-lg"></i>
+                </div>
+                <div class="truncate flex-1">
+                    <h4 id="sticky-track-title" class="text-xs font-bold text-gray-100 truncate cyber-font">Nenhuma música em execução</h4>
+                    <p id="sticky-track-artist" class="text-[11px] text-gray-400 truncate">Selecione uma faixa da biblioteca local</p>
+                </div>
+                <button onclick="toggleFavoriteCurrent()" id="sticky-fav-btn" class="p-2 text-gray-400 hover:text-cyber-pink transition">
+                    <i class="fa-solid fa-heart"></i>
+                </button>
+            </div>
+
+            <!-- Player Controls & Seekbar -->
+            <div class="flex flex-col items-center gap-1.5 w-full md:w-1/2">
+                <div class="flex items-center gap-4">
+                    <button onclick="toggleShuffle()" id="btn-shuffle" class="text-xs text-gray-400 hover:text-cyber-cyan transition" title="Embaralhar">
+                        <i class="fa-solid fa-shuffle"></i>
+                    </button>
+                    <button onclick="playPrevTrack()" class="text-sm text-gray-300 hover:text-cyber-cyan transition">
+                        <i class="fa-solid fa-backward-step"></i>
+                    </button>
+                    <button onclick="toggleGlobalPlayPause()" id="btn-sticky-play" class="w-10 h-10 rounded-xl bg-gradient-to-r from-cyber-cyan to-cyber-purple text-black flex items-center justify-center shadow-neon-cyan hover:opacity-90 transition">
+                        <i class="fa-solid fa-play ml-0.5 text-sm" id="sticky-play-icon"></i>
+                    </button>
+                    <button onclick="playNextTrack()" class="text-sm text-gray-300 hover:text-cyber-cyan transition">
+                        <i class="fa-solid fa-forward-step"></i>
+                    </button>
+                    <button onclick="toggleLoop()" id="btn-sticky-loop" class="text-xs text-gray-400 hover:text-cyber-cyan transition" title="Repetir">
+                        <i class="fa-solid fa-repeat"></i>
+                    </button>
+                </div>
+
+                <!-- Seek Progress Bar -->
+                <div class="flex items-center gap-2 w-full text-[10px] text-gray-400">
+                    <span id="current-time-text">00:00</span>
+                    <input type="range" id="audio-seekbar" min="0" max="100" value="0" oninput="seekAudio(this.value)" 
+                        class="flex-1 h-1.5 bg-cyber-border rounded-lg accent-cyber-cyan cursor-pointer">
+                    <span id="total-time-text">00:00</span>
+                </div>
+            </div>
+
+            <!-- Volume & Visualizer Mini Canvas -->
+            <div class="hidden md:flex items-center gap-4 w-1/4 justify-end">
+                <div class="w-24 h-8 bg-black/40 rounded-lg overflow-hidden border border-cyber-border">
+                    <canvas id="mini-visualizer" class="w-full h-full"></canvas>
+                </div>
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-volume-high text-xs text-gray-400"></i>
+                    <input type="range" min="0" max="100" value="80" oninput="changeAudioVolume(this.value)" class="w-16 accent-cyber-cyan cursor-pointer">
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Hidden HTML5 Audio Element para Músicas Locais -->
+    <audio id="local-audio-player" class="hidden"></audio>
+
+    <!-- YouTube Iframe API -->
+    <script src="https://www.youtube.com/iframe_api"></script>
+
+    <script src="app.js" defer></script>
+
+</body>
+</html>
